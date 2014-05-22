@@ -78,8 +78,13 @@ module Crowdinator
 
 	def self.perform version, actions, options={}
 		shop = install version, options
-		shop.add_necessary_modules
+		shop.add_and_configure_necessary_modules version: version
 
-		#shop.goto_module_configuration 'translatools'
+		actions.each do |action|
+			case action
+			when :publish_strings
+				shop.translatools_publish_strings
+			end
+		end
 	end
 end
