@@ -1,4 +1,5 @@
 require 'prestashop-automation'
+require 'shellwords'
 
 module Crowdinator
 	class PrestaShop < PrestaShopAutomation::PrestaShop
@@ -58,6 +59,21 @@ module Crowdinator
 
 			system 'rm', target
 
+		end
+
+		def check_translation_pack path
+			args = [
+				"-X POST -b\"#{get_cookies_string}\"",
+				"--url #{Shellwords.shellescape get_menu['AdminTranslations']}",
+				"-F \"theme[]=default-bootstrap\"",
+				"-F \"submitImport=1\"",
+				"-F \"file=@#{path}\"",
+				"-D -"
+			]
+			cmd = "curl " + args.join(" ")
+			out = `#{cmd}`
+
+			return out =~ /^Location:.*?\bconf=15\b/
 		end
 	end
 end

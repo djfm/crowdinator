@@ -4,3 +4,4 @@ require_relative '../lib/crowdinator.rb'
 
 Crowdinator.perform '1.6.0.7', [:build_packs], no_pull: true
 #Crowdinator.regenerate_translations
+#Crowdinator.test_packs '1.6.0.7'
