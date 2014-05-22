@@ -1,5 +1,6 @@
 require 'json'
 require 'uri'
+require 'rest-client'
 
 require_relative 'prestashop'
 
@@ -76,6 +77,21 @@ module Crowdinator
 		return shop
 	end
 
+	def self.regenerate_translations
+		url = "http://api.crowdin.net/api/project/#{config['crowdin_project']}/export?key=#{config['crowdin_api_key']}&json"
+		response = RestClient::Request.execute :method => :get, :url => url, :timeout => 7200, :open_timeout => 10
+		if response.code != 200
+			throw "Could not regenerate the translations."
+		else
+			data = JSON.parse response.to_str
+			if data["success"]
+				return data["success"]["status"]
+			else
+				throw "Could not regenerate the translations for some reason."
+			end
+		end
+	end
+
 	def self.perform version, actions, options={}
 		shop = install version, options
 		shop.add_and_configure_necessary_modules version: version
@@ -84,6 +100,8 @@ module Crowdinator
 			case action
 			when :publish_strings
 				shop.translatools_publish_strings
+			when :build_packs
+				shop.translatools_build_packs path('versions', version, 'packs', 'all_packs.tar.gz')
 			end
 		end
 	end

@@ -27,5 +27,37 @@ module Crowdinator
 				has_selector? '#sources-successfully-exported'
 			end
 		end
+
+		def translatools_build_packs target
+			goto_module_configuration 'translatools'
+			build_url = find('#build-and-download-packs')['action']
+
+			evaluate_script 'downloadTranslationsFromCrowdin(true)'
+			wait_until timeout: 300 do
+				if has_selector? '#translations-downloaded'
+					success = find('#translations-downloaded')['data-success']
+					throw "Failed to download the translations from Crowdin." if success != "1"
+					true
+				else
+					false
+				end
+			end
+			goto_module_configuration 'emailgenerator'
+			click '#generate-all-emails'
+			wait_until timeout: 600 do
+				has_selector? '#feedback.success'
+			end
+
+			unless system 'curl', '-X', 'POST', '-b', "\"#{get_cookies_string}\"", '--url', build_url, '-o', target
+				throw "Failed to build the packs."
+			end
+
+			unless system 'tar', 'xzvf', target, chdir: File.dirname(target)
+				throw "Could not extract the packs."
+			end
+
+			system 'rm', target
+
+		end
 	end
 end
