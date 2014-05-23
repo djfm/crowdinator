@@ -99,10 +99,19 @@ module Crowdinator
 
 	def self.test_packs shop, version
 		valid_packs =  []
+
+		backup_folder = path 'versions', version, 'archive', Time.now.to_s
+		unless system 'mkdir', '--parents', backup_folder
+			throw "Could not create folder: #{backup_folder}"
+		end
+
 		Dir.glob path('versions', version, 'packs', '*') do |pack|
 			ok = shop.check_translation_pack pack
 			if ok
 				valid_packs << pack
+				unless system 'cp', pack, backup_folder
+					throw "Could not backup '#{pack}' to '#{backup_folder}'"
+				end
 				puts "Pack '#{pack}' looks alright."
 			else
 				unless system 'rm', pack
@@ -111,7 +120,90 @@ module Crowdinator
 				puts "Ouch! Pack '#{pack}' is dead."
 			end
 		end
+
 		return valid_packs
+	end
+
+	def self.recordError str
+		(@errors ||= []) << str
+	end
+
+	def self.errors
+		@errors
+	end
+
+	def self.publish_pack version, language
+		source = path 'versions', version, 'packs', "#{language}.gzip"
+		unless File.exists? source
+			throw "Can't find file: #{source}"
+		end
+		conf_path = path 'versions', version, 'config.json'
+		unless File.exists? conf_path
+			throw "Missing config file: #{conf_path}"
+		end
+		conf = JSON.parse File.read(conf_path)
+		version_header = conf['version_header']
+		unless version_header
+			throw "Missing version_header key in '#{conf_path}'"
+		end
+
+		home_url, cookies = RestClient.post config['publisher_url'],
+			'email' => config['publisher_email'],
+			'passwd' => config['publisher_password'],
+			'controller' => 'AdminLogin',
+			'submitLogin' =>'1' do |response|
+			case response.code
+			when 302
+				[response.headers[:location], response.cookies]
+			else
+				throw "Unexpected response while loggin in to '#{config['publisher_url']}'"
+			end
+		end
+
+		query = RestClient.get(URI.join(config['publisher_url'], home_url).to_s, {:cookies => cookies})
+								.to_s[/(["'])(.*?\?controller=AdminTranslations\b.*?)\1/, 2]
+
+		admin_translations_url = URI.join(config['publisher_url'], query).to_s
+
+		data = {
+			'file' => File.new(source, 'rb'),
+			'submitImport' => 'Import',
+			'ps_version_header' => version_header,
+			'ExportDirectly' => 'on'
+		}
+
+		RestClient.post admin_translations_url, data, {:cookies => cookies} do |response|
+			case response.code
+			when 302
+				if response.headers[:location][/\bconf=15\b/].nil?
+					recordError "Failed to publish pack: #{source}"
+					return false
+				else
+					return true
+				end
+			else
+				recordError "Failed to publish pack: #{source}"
+				return false
+			end
+		end
+	end
+
+	def self.publish_all_packs version
+		languages = config['versions'][version]["publish"] rescue nil
+
+		if languages == "*"
+			languages = Dir.entries(path('versions', version, 'packs')).map do |name|
+				name[/^([a-z]{2})\.gzip$/,1]
+			end.reject &:nil?
+		end
+
+		if languages
+			languages.each do |language|
+				puts "Would publish #{version} #{language}"
+			end
+		end
+
+		return languages
 	end
 
 	def self.perform version, actions, options={}
@@ -121,11 +213,32 @@ module Crowdinator
 		actions.each do |action|
 			case action
 			when :publish_strings
+				puts "Publishing strings..."
 				shop.translatools_publish_strings
+				puts "Done publishing strings!"
 			when :build_packs
+				puts "Building packs..."
+				unless system 'rm', '-Rf', path('versions', version, 'packs', '*')
+					throw "Could not delete old packs."
+				end
 				shop.translatools_build_packs path('versions', version, 'packs', 'all_packs.tar.gz')
 				packs = test_packs shop, version
+				puts "Done building packs!"
+			when :publish_all_packs
+				puts "Publishing packs..."
+				publish_all_packs version
+				puts "Done publishing packs!"
 			end
+		end
+	end
+
+	def self.work_for_me
+		puts "Regenerating translations..."
+		regenerate_translations
+		puts "Done regenerating the translations!"
+		config['versions'].each_pair do |version, data|
+			puts "Now processing version #{version}..."
+			perform version, data['actions'].map(&:to_sym)
 		end
 	end
 end

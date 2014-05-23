@@ -34,7 +34,7 @@ module Crowdinator
 			build_url = find('#build-and-download-packs')['action']
 
 			evaluate_script 'downloadTranslationsFromCrowdin(true)'
-			wait_until timeout: 300 do
+			wait_until timeout: 1800 do
 				if has_selector? '#translations-downloaded'
 					success = find('#translations-downloaded')['data-success']
 					throw "Failed to download the translations from Crowdin." if success != "1"
