@@ -233,22 +233,26 @@ module Crowdinator
 	def self.work_for_me
 		begin
 			log "Regenerating translations..."
-			#regenerate_translations
+			regenerate_translations
 			log "Done regenerating the translations!"
 			config['versions'].each_pair do |version, data|
 				log "Now processing version #{version}..."
 				perform version, data['actions'].map(&:to_sym)
 			end
 			feedback :success, "Successfully published translations!"
-		rescue Exception => e
-			log "FATAL: #{e}"
-			feedback :error, "Failed to publish translations.", e
+		rescue => e
+			error = e.to_s
+			if e.public_methods.include? :backtrace
+				error += "\n#{e.backtrace.map do |line| "\t#{line}" end.join("\n")}"
+			end
+			log "FATAL: #{error}"
+			feedback :error, "Failed to publish translations.", error
 		end
 	end
 
 	def self.feedback status, title, focus=nil
 		gmail = Gmail.connect! config['gmail_username'], config['gmail_password']
-		content = [focus.to_s, logger.to_s].join "\n"
+		content = [focus.to_s, logger.to_s].join "\n\n\n"
 
 		config['send_feedback_to'].each do |recipient|
 			gmail.deliver do
