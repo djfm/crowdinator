@@ -1,5 +1,5 @@
 #!/usr/bin/ruby
-
+require 'bundler/setup'
 require_relative '../lib/crowdinator.rb'
 
 #puts Crowdinator.publish_pack('1.6.0.7', 'fr')

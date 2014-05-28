@@ -1,29 +1,23 @@
 require 'json'
 require 'uri'
 require 'rest-client'
+require 'gmail'
 
+require_relative 'helper'
 require_relative 'prestashop'
 
 module Crowdinator
-	def self.root
-		File.realpath(File.join(File.dirname(__FILE__), '..'))
-	end
-
-	def self.path *relative
-		File.join self.root, *relative
-	end
-
 	def self.config
 		return @config if @config
 
 		config = JSON.parse File.read(path 'config.json')
 
 		unless config['www_root']
-			puts "Config must include the 'www_root' key!"
+			log "Config must include the 'www_root' key!"
 		end
 
 		unless File.exists? root=config['www_root']
-			system('mkdir', '--parents', root)
+			log_system('mkdir', '--parents', root)
 		end
 
 		@config = config
@@ -47,26 +41,26 @@ module Crowdinator
 	def self.install version, options={}
 		shop_root = path 'versions', version, 'shop'
 		unless File.directory? shop_root
-			throw "Could not find shop files in: #{shop_root}"
+			raise "Could not find shop files in: #{shop_root}"
 		end
 		target = File.join config['www_root'], version
 
-		system('rm', '-Rf', target) if File.exists? target
+		log_system('rm', '-Rf', target) if File.exists? target
 
 		unless options[:no_pull]
-			if system('git', 'status', :chdir => shop_root)
-				if system('git', 'pull', :chdir => shop_root)
-					unless system('git', 'submodule', 'foreach', 'git', 'pull', :chdir => shop_root)
-						throw "Could not run pull for submodules in: #{shop_root}"
+			if log_system('git', 'status', :chdir => shop_root)
+				if log_system('git', 'pull', :chdir => shop_root)
+					unless log_system('git', 'submodule', 'foreach', 'git', 'pull', :chdir => shop_root)
+						raise "Could not run pull for submodules in: #{shop_root}"
 					end
 				else
-					throw "Could not pull in: #{shop_root}"
+					raise "Could not pull in: #{shop_root}"
 				end
 			end
 		end
 
-		unless system('cp', '-R', shop_root, target)
-			throw "Could not copy files from '#{shop_root}' to '#{target}'"
+		unless log_system('cp', '-R', shop_root, target)
+			raise "Could not copy files from '#{shop_root}' to '#{target}'"
 		end
 
 		base = URI.join config['www_base'], version + '/'
@@ -86,13 +80,13 @@ module Crowdinator
 		url = "http://api.crowdin.net/api/project/#{config['crowdin_project']}/export?key=#{config['crowdin_api_key']}&json"
 		response = RestClient::Request.execute :method => :get, :url => url, :timeout => 7200, :open_timeout => 10
 		if response.code != 200
-			throw "Could not regenerate the translations."
+			raise "Could not regenerate the translations."
 		else
 			data = JSON.parse response.to_str
 			if data["success"]
 				return data["success"]["status"]
 			else
-				throw "Could not regenerate the translations for some reason."
+				raise "Could not regenerate the translations for some reason."
 			end
 		end
 	end
@@ -101,23 +95,23 @@ module Crowdinator
 		valid_packs =  []
 
 		backup_folder = path 'versions', version, 'archive', Time.now.to_s
-		unless system 'mkdir', '--parents', backup_folder
-			throw "Could not create folder: #{backup_folder}"
+		unless log_system 'mkdir', '--parents', backup_folder
+			raise "Could not create folder: #{backup_folder}"
 		end
 
 		Dir.glob path('versions', version, 'packs', '*') do |pack|
 			ok = shop.check_translation_pack pack
 			if ok
 				valid_packs << pack
-				unless system 'cp', pack, backup_folder
-					throw "Could not backup '#{pack}' to '#{backup_folder}'"
+				unless log_system 'cp', pack, backup_folder
+					raise "Could not backup '#{pack}' to '#{backup_folder}'"
 				end
-				puts "Pack '#{pack}' looks alright."
+				log "Pack '#{pack}' looks alright."
 			else
-				unless system 'rm', pack
-					throw "Aborting, could not delete bad pack '#{pack}'."
+				unless log_system 'rm', pack
+					raise "Aborting, could not delete bad pack '#{pack}'."
 				end
-				puts "Ouch! Pack '#{pack}' is dead."
+				log "Ouch! Pack '#{pack}' is dead."
 			end
 		end
 
@@ -135,16 +129,16 @@ module Crowdinator
 	def self.publish_pack version, language
 		source = path 'versions', version, 'packs', "#{language}.gzip"
 		unless File.exists? source
-			throw "Can't find file: #{source}"
+			raise "Can't find file: #{source}"
 		end
 		conf_path = path 'versions', version, 'config.json'
 		unless File.exists? conf_path
-			throw "Missing config file: #{conf_path}"
+			raise "Missing config file: #{conf_path}"
 		end
 		conf = JSON.parse File.read(conf_path)
 		version_header = conf['version_header']
 		unless version_header
-			throw "Missing version_header key in '#{conf_path}'"
+			raise "Missing version_header key in '#{conf_path}'"
 		end
 
 		home_url, cookies = RestClient.post config['publisher_url'],
@@ -156,7 +150,7 @@ module Crowdinator
 			when 302
 				[response.headers[:location], response.cookies]
 			else
-				throw "Unexpected response while loggin in to '#{config['publisher_url']}'"
+				raise "Unexpected response while loggin in to '#{config['publisher_url']}'"
 			end
 		end
 
@@ -199,7 +193,11 @@ module Crowdinator
 
 		if languages
 			languages.each do |language|
-				puts "Would publish #{version} #{language}"
+				if publish_pack version, language
+					log "Successfully published #{language} for #{version}"
+				else
+					log "Could not publish #{language} for #{version}"
+				end
 			end
 		end
 
@@ -213,32 +211,55 @@ module Crowdinator
 		actions.each do |action|
 			case action
 			when :publish_strings
-				puts "Publishing strings..."
+				log "Publishing strings..."
 				shop.translatools_publish_strings
-				puts "Done publishing strings!"
+				log "Done publishing strings!"
 			when :build_packs
-				puts "Building packs..."
-				unless system 'rm', '-Rf', path('versions', version, 'packs', '*')
-					throw "Could not delete old packs."
+				log "Building packs..."
+				unless log_system 'rm', '-Rf', path('versions', version, 'packs', '*')
+					raise "Could not delete old packs."
 				end
 				shop.translatools_build_packs path('versions', version, 'packs', 'all_packs.tar.gz')
 				packs = test_packs shop, version
-				puts "Done building packs!"
+				log "Done building packs!"
 			when :publish_all_packs
-				puts "Publishing packs..."
+				log "Publishing packs..."
 				publish_all_packs version
-				puts "Done publishing packs!"
+				log "Done publishing packs!"
 			end
 		end
 	end
 
 	def self.work_for_me
-		puts "Regenerating translations..."
-		regenerate_translations
-		puts "Done regenerating the translations!"
-		config['versions'].each_pair do |version, data|
-			puts "Now processing version #{version}..."
-			perform version, data['actions'].map(&:to_sym)
+		self.feedback :success, "yay"
+		return
+		begin
+			log "Regenerating translations..."
+			#regenerate_translations
+			log "Done regenerating the translations!"
+			config['versions'].each_pair do |version, data|
+				log "Now processing version #{version}..."
+				perform version, data['actions'].map(&:to_sym)
+			end
+			feedback :success, "Successfully published translations!"
+		rescue Exception => e
+			log "FATAL: #{e}"
+			feedback :error, "Failed to publish translations.", e
+		end
+	end
+
+	def self.feedback status, title, focus=nil
+		gmail = Gmail.connect! config['gmail_username'], config['gmail_password']
+		content = [focus.to_s, logger.to_s].join "\n"
+
+		config['send_feedback_to'].each do |recipient|
+			gmail.deliver do
+				to recipient
+				subject title
+				text_part do
+					body content
+				end
+			end
 		end
 	end
 end

@@ -3,3 +3,4 @@ source "https://rubygems.org"
 
 gem "prestashop-automation"
 gem "rest-client"
+gem "gmail"

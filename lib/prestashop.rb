@@ -3,6 +3,8 @@ require 'shellwords'
 
 module Crowdinator
 	class PrestaShop < PrestaShopAutomation::PrestaShop
+		include Crowdinator::Logging
+
 		def add_and_configure_necessary_modules options
 			add_module_from_repo 'https://github.com/djfm/emailgenerator'
 			add_module_from_repo 'https://github.com/djfm/translatools', 'development'
@@ -37,7 +39,7 @@ module Crowdinator
 			wait_until timeout: 1800 do
 				if has_selector? '#translations-downloaded'
 					success = find('#translations-downloaded')['data-success']
-					throw "Failed to download the translations from Crowdin." if success != "1"
+					raise "Failed to download the translations from Crowdin." if success != "1"
 					true
 				else
 					false
@@ -49,15 +51,15 @@ module Crowdinator
 				has_selector? '#feedback.success'
 			end
 
-			unless system 'curl', '-X', 'POST', '-b', "\"#{get_cookies_string}\"", '--url', build_url, '-o', target
-				throw "Failed to build the packs."
+			unless log_system 'curl', '-X', 'POST', '-b', "\"#{get_cookies_string}\"", '--url', build_url, '-o', target
+				raise "Failed to build the packs."
 			end
 
-			unless system 'tar', 'xzvf', target, chdir: File.dirname(target)
-				throw "Could not extract the packs."
+			unless log_system 'tar', 'xzvf', target, chdir: File.dirname(target)
+				raise "Could not extract the packs."
 			end
 
-			system 'rm', target
+			log_system 'rm', target
 
 		end
 
