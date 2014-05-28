@@ -231,8 +231,6 @@ module Crowdinator
 	end
 
 	def self.work_for_me
-		self.feedback :success, "yay"
-		return
 		begin
 			log "Regenerating translations..."
 			#regenerate_translations
