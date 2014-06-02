@@ -2,6 +2,7 @@ require 'json'
 require 'uri'
 require 'rest-client'
 require 'gmail'
+require 'shellwords'
 
 require_relative 'helper'
 require_relative 'prestashop'
@@ -78,16 +79,12 @@ module Crowdinator
 
 	def self.regenerate_translations
 		url = "http://api.crowdin.net/api/project/#{config['crowdin_project']}/export?key=#{config['crowdin_api_key']}&json"
-		response = RestClient::Request.execute :method => :get, :url => url, :timeout => 7200, :open_timeout => 10
-		if response.code != 200
-			raise "Could not regenerate the translations."
+
+		data = JSON.parse `curl #{Shellwords.shellescape url}`
+		if data["success"]
+			return data["success"]["status"]
 		else
-			data = JSON.parse response.to_str
-			if data["success"]
-				return data["success"]["status"]
-			else
-				raise "Could not regenerate the translations for some reason."
-			end
+			raise "Could not regenerate the translations for some reason."
 		end
 	end
 
