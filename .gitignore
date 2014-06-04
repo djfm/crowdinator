@@ -2,3 +2,4 @@ config.json
 versions
 autocrowdin.disabled
 log
+crowdinator.lock

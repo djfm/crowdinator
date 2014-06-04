@@ -3,6 +3,7 @@ require 'uri'
 require 'rest-client'
 require 'gmail'
 require 'shellwords'
+require 'headless'
 
 require_relative 'helper'
 require_relative 'prestashop'
@@ -48,7 +49,7 @@ module Crowdinator
 
 		log_system('rm', '-Rf', target) if File.exists? target
 
-		unless options[:no_pull]
+		unless options[:skip_pull]
 			if log_system('git', 'status', :chdir => shop_root)
 				if log_system('git', 'pull', :chdir => shop_root)
 					unless log_system('git', 'submodule', 'foreach', 'git', 'pull', :chdir => shop_root)
@@ -227,23 +228,37 @@ module Crowdinator
 		end
 	end
 
-	def self.work_for_me
-		begin
-			log "Regenerating translations..."
-			regenerate_translations
-			log "Done regenerating the translations!"
-			config['versions'].each_pair do |version, data|
-				log "Now processing version #{version}..."
-				perform version, data['actions'].map(&:to_sym)
+	def self.work_for_me options={}
+		action = lambda do
+			begin
+				unless options[:skip_regenerate]
+					log "Regenerating translations..."
+					regenerate_translations
+					log "Done regenerating the translations!"
+				else
+					log "Skipping regeneration of the translations as asked"
+				end
+				config['versions'].each_pair do |version, data|
+					log "Now processing version #{version}..."
+					perform version, data['actions'].map(&:to_sym), options
+				end
+				feedback :success, "Successfully published translations!"
+			rescue => e
+				error = e.to_s
+				if e.public_methods.include? :backtrace
+					error += "\n#{e.backtrace.map do |line| "\t#{line}" end.join("\n")}"
+				end
+				log "FATAL: #{error}"
+				feedback :error, "Failed to publish translations.", error
 			end
-			feedback :success, "Successfully published translations!"
-		rescue => e
-			error = e.to_s
-			if e.public_methods.include? :backtrace
-				error += "\n#{e.backtrace.map do |line| "\t#{line}" end.join("\n")}"
+		end
+
+		if options[:headless]
+			Headless.ly do
+				action.call
 			end
-			log "FATAL: #{error}"
-			feedback :error, "Failed to publish translations.", error
+		else
+			action.call
 		end
 	end
 

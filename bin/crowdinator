@@ -1,11 +1,20 @@
 #!/usr/bin/ruby
 require 'bundler/setup'
+require 'optparse'
+
 require_relative '../lib/crowdinator.rb'
 
-#puts Crowdinator.publish_pack('1.6.0.7', 'fr')
-#puts Crowdinator.publish_all_packs '1.6.0.7'
-#Crowdinator.perform '1.6.0.7', [:build_packs], no_pull: true
-#Crowdinator.regenerate_translations
-#Crowdinator.test_packs '1.6.0.7'
+options = {}
+OptionParser.new do |opts|
+	opts.on '--skip-regenerate' do
+		options[:skip_regenerate] = true
+	end
+	opts.on '--headless' do
+		options[:headless] = true
+	end
+	opts.on '--skip-pull' do
+		options[:skip_pull] = true
+	end
+end.parse!
 
-Crowdinator.work_for_me
+Crowdinator.work_for_me options
