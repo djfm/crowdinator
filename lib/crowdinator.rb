@@ -80,12 +80,16 @@ module Crowdinator
 
 	def self.regenerate_translations
 		url = "http://api.crowdin.net/api/project/#{config['crowdin_project']}/export?key=#{config['crowdin_api_key']}&json"
-
-		data = JSON.parse `curl #{Shellwords.shellescape url}`
-		if data["success"]
-			return data["success"]["status"]
-		else
-			raise "Could not regenerate the translations for some reason."
+		begin
+			reply = `curl #{Shellwords.shellescape url}`
+			data = JSON.parse reply
+			if data["success"]
+				return data["success"]["status"]
+			else
+				raise "Could not regenerate the translations for some reason."
+			end
+		rescue
+			log "Could not regenerate translations, reply was:\n#{reply}"
 		end
 	end
 
