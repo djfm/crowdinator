@@ -49,7 +49,12 @@ module Crowdinator
 
 		log_system('rm', '-Rf', target) if File.exists? target
 
-		unless options[:skip_pull]
+		pwd = Dir.pwd
+		Dir.chdir shop_root
+		need_pull = `git remote` != ""
+		Dir.chdir pwd
+
+		unless options[:skip_pull] or !need_pull
 			if log_system('git', 'status', :chdir => shop_root)
 				if log_system('git', 'pull', :chdir => shop_root)
 					unless log_system('git', 'submodule', 'foreach', 'git', 'pull', :chdir => shop_root)
