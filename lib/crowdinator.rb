@@ -47,8 +47,13 @@ module Crowdinator
 		end
 		target = File.join config['www_root'], version
 
-		log_system('rm', '-Rf', target) if File.exists? target
-
+		if File.exists? target
+			log_system 'cp', path('etc', 'autokill.php'), target
+			kill_url = URI.join(config['www_base'], version + '/autokill.php').to_s
+			log "Calling autokill url: #{kill_url}"
+			RestClient.get kill_url
+		end
+		
 		pwd = Dir.pwd
 		Dir.chdir shop_root
 		need_pull = `git remote` != ""
@@ -248,8 +253,12 @@ module Crowdinator
 					log "Skipping regeneration of the translations as asked"
 				end
 				config['versions'].each_pair do |version, data|
-					log "Now processing version #{version}..."
-					perform version, data['actions'].map(&:to_sym), options
+					if !options[:version] or options[:version] == version
+						log "Now processing version #{version}..."
+						perform version, data['actions'].map(&:to_sym), options
+					else
+						puts "Skipping #{version}, only interested in #{options[:version]}"
+					end
 				end
 				feedback :success, "Successfully published translations!"
 			rescue => e

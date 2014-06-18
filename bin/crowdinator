@@ -15,6 +15,9 @@ OptionParser.new do |opts|
 	opts.on '--skip-pull' do
 		options[:skip_pull] = true
 	end
+	opts.on '--version v' do |v|
+		options[:version] = v
+	end
 end.parse!
 
 Crowdinator.work_for_me options
