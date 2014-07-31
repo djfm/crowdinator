@@ -243,6 +243,13 @@ module Crowdinator
 	end
 
 	def self.work_for_me options={}
+
+		lockfile = File.open(path('running.lock'), 'w');
+		unless lockfile.flock(File::LOCK_EX | File::LOCK_NB);
+			feedback :error, "Not publishing translations, already in progress."
+			return
+		end
+
 		action = lambda do
 			begin
 				unless options[:skip_regenerate]
@@ -278,6 +285,8 @@ module Crowdinator
 		else
 			action.call
 		end
+
+		lockfile.flock(File::LOCK_UN)
 	end
 
 	def self.feedback status, title, focus=nil
