@@ -15,7 +15,7 @@ module Crowdinator
 			end
 
 			goto_module_configuration 'translatools'
-			expect_not_to have_selector '#modules-are-missing'
+			#expect_not_to have_selector '#modules-are-missing'
 
 			fill_in 'CROWDIN_PROJECT_IDENTIFIER', with: Crowdinator.config['crowdin_project']
 			fill_in 'CROWDIN_PROJECT_API_KEY', with: Crowdinator.config['crowdin_api_key']
