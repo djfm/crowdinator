@@ -10,6 +10,17 @@ module Crowdinator
 			add_module_from_repo 'https://github.com/djfm/translatools', 'development'
 			install_module 'emailgenerator'
 			install_module 'translatools'
+
+			if has_selector? '#force-live-translation'
+				puts "Forcing live translation..."
+				execute_script '$("#force-live-translation").submit()'
+				puts "Forced!"
+			end
+
+			wait_until timeout: 600 do
+				not has_selector?('#force-live-translation')
+			end
+
 			if has_selector? '#modules-are-missing'
 				click '#modules-are-missing'
 			end
@@ -26,7 +37,7 @@ module Crowdinator
 		def translatools_publish_strings
 			goto_module_configuration 'translatools'
 			evaluate_script 'exportSourcesToCrowdin(true)'
-			wait_until timeout: 1800 do
+			wait_until timeout: 21600 do
 				has_selector? '#sources-successfully-exported'
 			end
 		end

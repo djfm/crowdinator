@@ -53,7 +53,7 @@ module Crowdinator
 			log "Calling autokill url: #{kill_url}"
 			RestClient.get kill_url
 		end
-		
+
 		pwd = Dir.pwd
 		Dir.chdir shop_root
 		need_pull = `git remote` != ""
@@ -73,6 +73,10 @@ module Crowdinator
 
 		unless log_system('cp', '-R', shop_root, target)
 			raise "Could not copy files from '#{shop_root}' to '#{target}'"
+		end
+
+		unless log_system('chmod', '777', '-R', target)
+			raise "Could not copy chmod 777 -R '#{target}'"
 		end
 
 		base = URI.join config['www_base'], version + '/'
@@ -139,6 +143,12 @@ module Crowdinator
 	end
 
 	def self.publish_pack version, language
+
+		if language == 'tr'
+			log "Skipped Turkish because ZERO translations"
+			return false
+		end
+
 		source = path 'versions', version, 'packs', "#{language}.gzip"
 		unless File.exists? source
 			raise "Can't find file: #{source}"
@@ -196,6 +206,7 @@ module Crowdinator
 
 	def self.publish_all_packs version
 		languages = config['versions'][version]["publish"] rescue nil
+		exclude   = config['versions'][version]["exclude"] rescue []
 
 		if languages == "*"
 			languages = Dir.entries(path('versions', version, 'packs')).map do |name|
@@ -203,12 +214,20 @@ module Crowdinator
 			end.reject &:nil?
 		end
 
+		languages = languages.reject do |language|
+			exclude.include? language
+		end
+
 		if languages
 			languages.each do |language|
-				if publish_pack version, language
-					log "Successfully published #{language} for #{version}"
-				else
-					log "Could not publish #{language} for #{version}"
+				begin
+					if publish_pack version, language
+						log "Successfully published #{language} for #{version}"
+					else
+						log "Could not publish #{language} for #{version}"
+					end
+				rescue => e
+					log "Exception thrown while publishing #{language} for #{version}, continuing anyway..."
 				end
 			end
 		end
@@ -259,7 +278,7 @@ module Crowdinator
 				else
 					log "Skipping regeneration of the translations as asked"
 				end
-				config['versions'].each_pair do |version, data|
+				config['versions'].sort {|a, b| Gem::Version.new(b[0].dup) <=> Gem::Version.new(a[0].dup)}.each do |version, data|
 					if !options[:version] or options[:version] == version
 						log "Now processing version #{version}..."
 						perform version, data['actions'].map(&:to_sym), options
